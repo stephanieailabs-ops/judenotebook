@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Notes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: two-pane — note index left, editor right; stacks to one pane under 720px */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --fg:#17202e; --muted:#667189; --line:#dde2ea;
+  --accent:#2f5bea; --accent-soft:#e6ecfd; --danger:#c8372d;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141c; --panel:#161d28; --fg:#e7ebf2; --muted:#8c97ab; --line:#263042;
+  --accent:#7d9bff; --accent-soft:#1d2a4a; --danger:#ff7a6e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --panel:#161d28; --fg:#e7ebf2; --muted:#8c97ab; --line:#263042;
+  --accent:#7d9bff; --accent-soft:#1d2a4a; --danger:#ff7a6e; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;box-sizing:border-box}
+*{box-sizing:border-box}
+.app{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;height:100%;max-width:1100px;margin:0 auto}
+aside,main{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 16px 8px}
+h1{font-family:var(--display);font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid transparent}
+.btn-primary{background:var(--accent);color:var(--panel);padding:7px 12px;font-weight:600}
+.btn-ghost{background:transparent;color:var(--muted);padding:6px 10px;border-color:var(--line)}
+.btn-ghost:hover{color:var(--fg)}
+.btn-danger{background:var(--danger);color:var(--panel);padding:6px 10px;font-weight:600}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.search{margin:0 16px 8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+.list{list-style:none;margin:0;padding:4px 8px 8px;overflow:auto;flex:1}
+.item{padding:10px;border-radius:8px;cursor:pointer;display:grid;gap:2px}
+.item:hover{background:var(--bg)}
+.item.active{background:var(--accent-soft)}
+.item b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item span{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.count{color:var(--muted);font-size:12px;padding:0 16px 12px;letter-spacing:.04em;text-transform:uppercase}
+.bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar .meta{color:var(--muted);font-size:12.5px;margin-right:auto;font-variant-numeric:tabular-nums}
+.title{font-family:var(--display);font-size:26px;font-weight:700;border:0;background:transparent;color:var(--fg);padding:20px 24px 4px;width:100%}
+.content{flex:1;border:0;background:transparent;color:var(--fg);font:inherit;line-height:1.65;padding:8px 24px 24px;resize:none;width:100%;max-width:72ch}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+.empty{margin:auto;text-align:center;color:var(--muted);padding:32px;display:grid;gap:12px;justify-items:center}
+.back{display:none}
+@media (max-width:720px){
+  .app{grid-template-columns:1fr}
+  .app.editing aside{display:none}
+  .app:not(.editing) main{display:none}
+  .back{display:inline-block}
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <aside>
+    <div class="top"><h1>Pocket Notes</h1><button class="btn-primary" id="newBtn">+ New</button></div>
+    <input class="search" id="search" type="search" placeholder="Search notes" aria-label="Search notes">
+    <div class="count" id="count"></div>
+    <ul class="list" id="list"></ul>
+  </aside>
+  <main id="main">
+    <div class="bar">
+      <button class="btn-ghost back" id="backBtn">← Notes</button>
+      <span class="meta" id="meta"></span>
+      <span id="delWrap"><button class="btn-ghost" id="delBtn">Delete</button></span>
+    </div>
+    <input class="title" id="title" placeholder="Untitled" aria-label="Note title">
+    <textarea class="content" id="content" placeholder="Start writing…" aria-label="Note body"></textarea>
+  </main>
+</div>
+
+<script>
+const KEY="pocket-notes-v1";
+const now=Date.now();
+let notes=[
+  {id:"n1",title:"Welcome to Pocket Notes",body:"Example note.\n\n• Click + New to start a note\n• Edits save automatically in this browser\n• Search filters by title and text",updated:now},
+  {id:"n2",title:"Thumbnail ideas",body:"Example note.\n\nBold type, one hero object, high-contrast background.",updated:now-86400000},
+];
+try{const s=localStorage.getItem(KEY);if(s)notes=JSON.parse(s)}catch(e){}
+let activeId=notes[0]?.id||null, q="", confirming=false;
+const $=id=>document.getElementById(id);
+function save(){try{localStorage.setItem(KEY,JSON.stringify(notes))}catch(e){}}
+function fmt(t){return new Date(t).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
+function active(){return notes.find(n=>n.id===activeId)}
+function renderList(){
+  const f=notes.filter(n=>(n.title+" "+n.body).toLowerCase().includes(q)).sort((a,b)=>b.updated-a.updated);
+  $("count").textContent=f.length+(f.length===1?" note":" notes");
+  $("list").innerHTML="";
+  f.forEach(n=>{
+    const li=document.createElement("li");li.className="item"+(n.id===activeId?" active":"");li.tabIndex=0;
+    const b=document.createElement("b");b.textContent=n.title||"Untitled";
+    const s=document.createElement("span");s.textContent=(n.body.split("\n").find(l=>l.trim())||"No text")+"";
+    li.append(b,s);
+    li.onclick=li.onkeydown=e=>{if(e.type==="keydown"&&e.key!=="Enter")return;open(n.id)};
+    $("list").append(li);
+  });
+}
+function renderEditor(){
+  const n=active();
+  ["title","content","delWrap","meta"].forEach(id=>$(id).hidden=!n);
+  if(!n){if(!$("emptyMsg")){const d=document.createElement("div");d.id="emptyMsg";d.className="empty";d.innerHTML='<div>No note selected.</div>';$("main").append(d)}return}
+  $("emptyMsg")?.remove();
+  $("title").value=n.title;$("content").value=n.body;$("meta").textContent="Saved "+fmt(n.updated);
+  resetDel();
+}
+function open(id){activeId=id;$("app").classList.add("editing");renderList();renderEditor()}
+function edit(){const n=active();if(!n)return;n.title=$("title").value;n.body=$("content").value;n.updated=Date.now();
+  $("meta").textContent="Saved "+fmt(n.updated);save();renderList()}
+function resetDel(){confirming=false;$("delWrap").innerHTML='<button class="btn-ghost" id="delBtn">Delete</button>';$("delBtn").onclick=askDel}
+function askDel(){$("delWrap").innerHTML='<button class="btn-ghost" id="cancelDel">Cancel</button> <button class="btn-danger" id="okDel">Delete note</button>';
+  $("cancelDel").onclick=resetDel;$("okDel").onclick=()=>{notes=notes.filter(n=>n.id!==activeId);activeId=notes[0]?.id||null;save();$("app").classList.remove("editing");renderList();renderEditor()}}
+$("newBtn").onclick=()=>{const n={id:"n"+Date.now(),title:"",body:"",updated:Date.now()};notes.unshift(n);save();open(n.id);$("title").focus()};
+$("title").oninput=edit;$("content").oninput=edit;
+$("search").oninput=e=>{q=e.target.value.toLowerCase();renderList()};
+$("backBtn").onclick=()=>$("app").classList.remove("editing");
+renderList();renderEditor();
+</script>
+</body>
+</html>
